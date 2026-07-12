@@ -1,3 +1,4 @@
+// ========== SERVER SETUP ==========
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -6,13 +7,11 @@ const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
-
-// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '.')));
+app.use(express.static(__dirname));
 
-// Data directories
+// ========== DOSYA YOLLARI ==========
 const dataDir = path.join(__dirname, 'data');
 const usersFile = path.join(dataDir, 'users.json');
 const ordersFile = path.join(dataDir, 'orders.json');
@@ -20,7 +19,7 @@ const chatDir = path.join(dataDir, 'chats');
 const numbersFile = path.join(dataDir, 'numbers.json');
 const paymentConfigFile = path.join(dataDir, 'payment-config.json');
 
-// Initialize files
+// Dosya yapısını kontrol et ve oluştur
 function initializeFiles() {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
     if (!fs.existsSync(chatDir)) fs.mkdirSync(chatDir, { recursive: true });
@@ -95,7 +94,22 @@ function initializeFiles() {
                     name: 'WhatsApp',
                     icon: '💬',
                     platform: 'whatsapp',
-                    numbers: []
+                    numbers: [
+                        '+1 555 123 4567',
+                        '+44 7911 123456',
+                        '+49 30 12345678'
+                    ]
+                },
+                {
+                    id: 'telegram',
+                    name: 'Telegram',
+                    icon: '✈️',
+                    platform: 'telegram',
+                    numbers: [
+                        '+7 912 345 6789',
+                        '+81 90 1234 5678',
+                        '+86 123 4567 8901'
+                    ]
                 }
             ]
         }, null, 2));
@@ -104,7 +118,7 @@ function initializeFiles() {
 
 initializeFiles();
 
-// Helper functions
+// ========== HELPER FUNCTIONS ==========
 function readJSONFile(filePath) {
     try {
         return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -142,35 +156,18 @@ function writeChatMessages(userId, messages) {
     fs.writeFileSync(chatFile, JSON.stringify(messages, null, 2));
 }
 
-// Routes - Ana sayfalar
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'app.html'));
-});
-
-app.get('/app.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'app.html'));
-});
-
-app.get('/admin.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin.html'));
-});
-
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin.html'));
-});
-
-// AUTH ENDPOINTS
+// ========== AUTH ENDPOINTS ==========
 app.post('/api/register', (req, res) => {
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-        return res.status(400).json({ error: 'Tum alanlar zorunludur' });
+        return res.status(400).json({ error: 'Tüm alanlar zorunludur' });
     }
 
     let data = readJSONFile(usersFile);
     
     if (data.users.some(u => u.email === email)) {
-        return res.status(400).json({ error: 'Bu e-posta zaten kullaniliyor' });
+        return res.status(400).json({ error: 'Bu e-posta zaten kullanılıyor' });
     }
 
     const user = {
@@ -185,11 +182,13 @@ app.post('/api/register', (req, res) => {
 
     data.users.push(user);
     writeJSONFile(usersFile, data);
+
+    // Canlı destek mesajları dosyası oluştur
     writeChatMessages(user.id, { userId: user.id, messages: [] });
 
     res.json({
         success: true,
-        message: 'Kayit basarili',
+        message: 'Kayıt başarılı',
         user: { id: user.id, name, email, token: user.token }
     });
 });
@@ -198,19 +197,19 @@ app.post('/api/login', (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-        return res.status(400).json({ error: 'E-posta ve sifre gerekli' });
+        return res.status(400).json({ error: 'E-posta ve şifre gerekli' });
     }
 
     let data = readJSONFile(usersFile);
     const user = data.users.find(u => u.email === email && u.password === hashPassword(password));
 
     if (!user) {
-        return res.status(401).json({ error: 'E-posta veya sifre hatali' });
+        return res.status(401).json({ error: 'E-posta veya şifre hatalı' });
     }
 
     res.json({
         success: true,
-        message: 'Giris basarili',
+        message: 'Giriş başarılı',
         user: { id: user.id, name: user.name, email, balance: user.balance, token: user.token }
     });
 });
@@ -222,24 +221,24 @@ app.post('/api/admin/login', (req, res) => {
     const admin = data.admins.find(a => a.email === email && a.password === hashPassword(password));
 
     if (!admin) {
-        return res.status(401).json({ error: 'Admin kimlik bilgileri hatali' });
+        return res.status(401).json({ error: 'Admin kimlik bilgileri hatalı' });
     }
 
     res.json({
         success: true,
-        message: 'Admin girisi basarili',
+        message: 'Admin girişi başarılı',
         admin: { id: admin.id, email, token: generateToken() }
     });
 });
 
-// USER ENDPOINTS
+// ========== USER ENDPOINTS ==========
 app.get('/api/user/:userId', (req, res) => {
     const { userId } = req.params;
     let data = readJSONFile(usersFile);
     const user = data.users.find(u => u.id === userId);
 
     if (!user) {
-        return res.status(404).json({ error: 'Kullanici bulunamadi' });
+        return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
 
     res.json({
@@ -259,7 +258,7 @@ app.post('/api/user/:userId/add-balance', (req, res) => {
     const user = data.users.find(u => u.id === userId);
 
     if (!user) {
-        return res.status(404).json({ error: 'Kullanici bulunamadi' });
+        return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
 
     user.balance += parseFloat(amount);
@@ -272,7 +271,58 @@ app.post('/api/user/:userId/add-balance', (req, res) => {
     });
 });
 
-// PAYMENT CONFIG ENDPOINTS
+// Kullanıcı tarafı bakiye yükleme: sadece etkin bir ödeme sistemi varsa çalışır
+app.post('/api/user/:userId/topup', (req, res) => {
+    const { userId } = req.params;
+    const { amount, method } = req.body;
+
+    const topupAmount = parseFloat(amount);
+    if (!topupAmount || topupAmount <= 0) {
+        return res.status(400).json({ error: 'Geçersiz tutar' });
+    }
+
+    const paymentConfig = readJSONFile(paymentConfigFile);
+    const enabledMethods = Object.entries(paymentConfig.paymentMethods)
+        .filter(([_, m]) => m.enabled);
+
+    if (enabledMethods.length === 0) {
+        return res.status(400).json({
+            error: 'Şu anda aktif bir ödeme sistemi bulunmuyor. Lütfen daha sonra tekrar deneyin.',
+            code: 'NO_PAYMENT_METHOD'
+        });
+    }
+
+    const chosenMethod = method
+        ? paymentConfig.paymentMethods[method]
+        : null;
+
+    if (method && (!chosenMethod || !chosenMethod.enabled)) {
+        return res.status(400).json({
+            error: 'Seçilen ödeme yöntemi şu anda aktif değil.',
+            code: 'PAYMENT_METHOD_DISABLED'
+        });
+    }
+
+    let userData = readJSONFile(usersFile);
+    const user = userData.users.find(u => u.id === userId);
+
+    if (!user) {
+        return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+    }
+
+    // Not: Gerçek entegrasyonda burada seçilen ödeme sağlayıcısının
+    // API'si çağrılır ve ödeme onaylandıktan sonra bakiye eklenir.
+    user.balance += topupAmount;
+    writeJSONFile(usersFile, userData);
+
+    res.json({
+        success: true,
+        message: 'Bakiye başarıyla eklendi',
+        newBalance: user.balance
+    });
+});
+
+// ========== PAYMENT CONFIG ENDPOINTS ==========
 app.get('/api/admin/payment-config', (req, res) => {
     const config = readJSONFile(paymentConfigFile);
     res.json(config);
@@ -283,7 +333,7 @@ app.post('/api/admin/payment-config/:method', (req, res) => {
     const config = readJSONFile(paymentConfigFile);
 
     if (!config.paymentMethods[method]) {
-        return res.status(404).json({ error: 'Odeme yontemi bulunamadi' });
+        return res.status(404).json({ error: 'Ödeme yöntemi bulunamadı' });
     }
 
     config.paymentMethods[method] = {
@@ -295,7 +345,7 @@ app.post('/api/admin/payment-config/:method', (req, res) => {
 
     res.json({
         success: true,
-        message: `${method} yontemi guncellendi`,
+        message: `${method} yöntemi güncellendi`,
         method: config.paymentMethods[method]
     });
 });
@@ -309,7 +359,7 @@ app.get('/api/payment-methods', (req, res) => {
     res.json(enabledMethods);
 });
 
-// ORDERS ENDPOINTS
+// ========== ORDERS ENDPOINTS ==========
 app.post('/api/orders', (req, res) => {
     const { userId, packageId, price } = req.body;
 
@@ -318,8 +368,26 @@ app.post('/api/orders', (req, res) => {
     
     const user = userData.users.find(u => u.id === userId);
     if (!user) {
-        return res.status(404).json({ error: 'Kullanici bulunamadi' });
+        return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
+
+    if (!packageId || typeof price !== 'number' || price <= 0) {
+        return res.status(400).json({ error: 'Geçersiz paket veya fiyat' });
+    }
+
+    // Bakiye kontrolü: yetersiz bakiye varsa sipariş oluşturulmasın
+    if (user.balance < price) {
+        return res.status(400).json({
+            error: 'Yetersiz bakiye. Lütfen önce bakiye ekleyin.',
+            code: 'INSUFFICIENT_BALANCE',
+            balance: user.balance,
+            required: price
+        });
+    }
+
+    // Bakiyeyi düş
+    user.balance -= price;
+    writeJSONFile(usersFile, userData);
 
     const order = {
         id: 'ORD-' + Date.now(),
@@ -327,7 +395,7 @@ app.post('/api/orders', (req, res) => {
         packageId,
         price,
         status: 'Beklemede',
-        paymentStatus: 'Odeme Bekleniyor',
+        paymentStatus: 'Ödendi',
         code: null,
         number: null,
         createdAt: new Date().toISOString()
@@ -338,8 +406,9 @@ app.post('/api/orders', (req, res) => {
 
     res.json({
         success: true,
-        message: 'Siparis olusturuldu. Canli destek ile iletisime gecin.',
-        order
+        message: 'Sipariş oluşturuldu. Canlı destek ile iletişime geçin.',
+        order,
+        newBalance: user.balance
     });
 });
 
@@ -359,7 +428,7 @@ app.post('/api/admin/orders/:orderId/update', (req, res) => {
     const order = ordersData.orders.find(o => o.id === orderId);
 
     if (!order) {
-        return res.status(404).json({ error: 'Siparis bulunamadi' });
+        return res.status(404).json({ error: 'Sipariş bulunamadı' });
     }
 
     if (code) order.code = code;
@@ -370,12 +439,12 @@ app.post('/api/admin/orders/:orderId/update', (req, res) => {
 
     res.json({
         success: true,
-        message: 'Siparis guncellendi',
+        message: 'Sipariş güncellendi',
         order
     });
 });
 
-// CHAT ENDPOINTS
+// ========== CHAT ENDPOINTS ==========
 app.get('/api/chat/:userId', (req, res) => {
     const { userId } = req.params;
     const messages = readChatMessages(userId);
@@ -387,7 +456,7 @@ app.post('/api/chat/:userId/send', (req, res) => {
     const { sender, content } = req.body;
 
     if (!sender || !content) {
-        return res.status(400).json({ error: 'Gonden ve mesaj gerekli' });
+        return res.status(400).json({ error: 'Gönderen ve mesaj gerekli' });
     }
 
     let messages = readChatMessages(userId);
@@ -403,7 +472,7 @@ app.post('/api/chat/:userId/send', (req, res) => {
 
     res.json({
         success: true,
-        message: 'Mesaj gonderildi',
+        message: 'Mesaj gönderildi',
         messages
     });
 });
@@ -436,7 +505,7 @@ app.get('/api/admin/chats', (req, res) => {
     res.json(chats);
 });
 
-// NUMBERS ENDPOINTS
+// ========== NUMBERS ENDPOINTS ==========
 app.get('/api/numbers', (req, res) => {
     const numbers = readJSONFile(numbersFile);
     res.json(numbers.categories);
@@ -459,7 +528,7 @@ app.post('/api/admin/numbers/category', (req, res) => {
 
     res.json({
         success: true,
-        message: 'Kategori olusturuldu',
+        message: 'Kategori oluşturuldu',
         category
     });
 });
@@ -472,7 +541,7 @@ app.post('/api/admin/numbers/:categoryId/add', (req, res) => {
     const category = numbers.categories.find(c => c.id === categoryId);
 
     if (!category) {
-        return res.status(404).json({ error: 'Kategori bulunamadi' });
+        return res.status(404).json({ error: 'Kategori bulunamadı' });
     }
 
     if (!category.numbers.includes(number)) {
@@ -494,7 +563,7 @@ app.delete('/api/admin/numbers/:categoryId/:number', (req, res) => {
     const category = numbers.categories.find(c => c.id === categoryId);
 
     if (!category) {
-        return res.status(404).json({ error: 'Kategori bulunamadi' });
+        return res.status(404).json({ error: 'Kategori bulunamadı' });
     }
 
     category.numbers = category.numbers.filter(n => n !== decodeURIComponent(number));
@@ -512,7 +581,7 @@ app.get('/api/numbers/:categoryId/random', (req, res) => {
     const category = numbers.categories.find(c => c.id === categoryId);
 
     if (!category || category.numbers.length === 0) {
-        return res.status(404).json({ error: 'Numara bulunamadi' });
+        return res.status(404).json({ error: 'Numara bulunamadı' });
     }
 
     const randomNumber = category.numbers[Math.floor(Math.random() * category.numbers.length)];
@@ -524,7 +593,7 @@ app.get('/api/numbers/:categoryId/random', (req, res) => {
     });
 });
 
-// ADMIN ENDPOINTS
+// ========== ADMIN ENDPOINTS ==========
 app.get('/api/admin/users', (req, res) => {
     let data = readJSONFile(usersFile);
     res.json(data.users);
@@ -537,6 +606,7 @@ app.delete('/api/admin/users/:userId', (req, res) => {
     data.users = data.users.filter(u => u.id !== userId);
     writeJSONFile(usersFile, data);
 
+    // Canlı destek mesajlarını sil
     const chatFile = getChatFile(userId);
     if (fs.existsSync(chatFile)) {
         fs.unlinkSync(chatFile);
@@ -544,7 +614,7 @@ app.delete('/api/admin/users/:userId', (req, res) => {
 
     res.json({
         success: true,
-        message: 'Kullanici silindi'
+        message: 'Kullanıcı silindi'
     });
 });
 
@@ -554,7 +624,7 @@ app.post('/api/admin/users/:userId/ban', (req, res) => {
 
     const user = data.users.find(u => u.id === userId);
     if (!user) {
-        return res.status(404).json({ error: 'Kullanici bulunamadi' });
+        return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
 
     user.banned = true;
@@ -562,7 +632,7 @@ app.post('/api/admin/users/:userId/ban', (req, res) => {
 
     res.json({
         success: true,
-        message: 'Kullanici banlandi'
+        message: 'Kullanıcı banlandı'
     });
 });
 
@@ -571,19 +641,46 @@ app.get('/api/admin/orders', (req, res) => {
     res.json(ordersData.orders);
 });
 
-// ERROR HANDLER
+// ========== WHATSAPP INTEGRATION ==========
+app.post('/api/whatsapp/send', (req, res) => {
+    const { phoneNumber, orderId, orderDetails } = req.body;
+
+    const message = `
+🔐 *VerifyPro - Sipariş Bildirimi*
+
+📦 *Sipariş No:* ${orderId}
+💰 *Tutar:* ${orderDetails.price} ₺
+📊 *Durum:* ${orderDetails.status}
+
+Siparişiniz alınmıştır. Teslim için admin ile iletişime geçebilirsiniz.
+
+👨‍💼 *Canlı Destek:* Sohbet Sistemi
+📞 Destekle İletişim: Support@VerifyPro.com
+    `;
+
+    // Gerçek implementasyonda Twilio veya WhatsApp API kullanılır
+    console.log(`WhatsApp mesajı gönderiliyor: ${phoneNumber}`);
+    console.log(message);
+
+    res.json({
+        success: true,
+        message: 'WhatsApp mesajı gönderildi'
+    });
+});
+
+// ========== ERROR HANDLER ==========
 app.use((err, req, res, next) => {
     console.error(err);
     res.status(500).json({
-        error: 'Sunucu hatasi',
+        error: 'Sunucu hatası',
         message: err.message
     });
 });
 
-// START SERVER
-const PORT = process.env.PORT || 8080;
+// ========== SERVER START ==========
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`✅ Server http://localhost:${PORT} adresinde calisiyor`);
-    console.log(`📂 Veri dosyalari: ${dataDir}`);
-    console.log(`💾 Canli destek mesajlari: ${chatDir}`);
+    console.log(`✅ Server http://localhost:${PORT} adresinde çalışıyor`);
+    console.log('📂 Veri dosyaları:', dataDir);
+    console.log('💾 Canlı destek mesajları:', chatDir);
 });
