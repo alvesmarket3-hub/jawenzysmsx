@@ -670,7 +670,7 @@
 <div class="modal" id="order-code-modal">
     <div class="modal-content">
         <span class="modal-close" onclick="closeModal('order-code-modal')">×</span>
-        <div class="modal-title">🔐 Kod Gir</div>
+        <div class="modal-title">📩 SMS Kodu Gir</div>
         <div class="form-group">
             <label class="form-label">Sipariş ID</label>
             <input type="text" class="form-input" id="code-order-id" readonly>
@@ -680,8 +680,8 @@
             <input type="text" class="form-input" id="code-value" placeholder="123456">
         </div>
         <div class="form-group">
-            <label class="form-label">Numara (Opsiyonel)</label>
-            <input type="text" class="form-input" id="code-number" placeholder="+90 555 123 4567">
+            <label class="form-label">Numara (Sistem tarafından atandı)</label>
+            <input type="text" class="form-input" id="code-number" readonly style="opacity:0.7;">
         </div>
         <button class="btn btn-primary" style="width: 100%; margin-top: 20px;" onclick="submitOrderCode()">Kodu Gir</button>
     </div>
@@ -709,7 +709,7 @@
 </div>
 
 <script>
-    const API_URL = 'https://jawenzysmsx-production.up.railway.app/api';
+    const API_URL = '/api';
     let currentOrderId = null;
 
     // ========== PAGE NAVIGATION ==========
@@ -842,23 +842,29 @@
     }
 
     // ========== ORDERS ==========
+    let ordersCache = [];
+
     async function loadOrders() {
         try {
             const res = await fetch(`${API_URL}/admin/orders`);
             const orders = await res.json();
+            ordersCache = orders;
 
             const tbody = document.getElementById('orders-tbody');
             tbody.innerHTML = orders.map(order => `
                 <tr>
                     <td>${order.id}</td>
                     <td>${order.userId}</td>
-                    <td>${order.packageId}</td>
+                    <td>${order.packageId}${order.type === 'number' ? ' <span style="color:#00adb5;">(Numara)</span>' : ''}</td>
                     <td>₺${order.price}</td>
                     <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
                     <td>${order.code || '-'}</td>
                     <td>${order.number || '-'}</td>
                     <td>
-                        <button class="btn btn-primary" onclick="openOrderCodeModal('${order.id}')">Kod Gir</button>
+                        ${order.type === 'number'
+                            ? `<button class="btn btn-primary" onclick="openOrderCodeModal('${order.id}')">SMS Kodu Gir</button>`
+                            : `<span style="color:#557193;font-size:10px;">Manuel Teslimat (Canlı Destek)</span>`
+                        }
                     </td>
                 </tr>
             `).join('');
@@ -869,13 +875,16 @@
 
     function openOrderCodeModal(orderId) {
         currentOrderId = orderId;
+        const order = ordersCache.find(o => o.id === orderId);
+
         document.getElementById('code-order-id').value = orderId;
+        document.getElementById('code-number').value = (order && order.number) || '';
+        document.getElementById('code-value').value = (order && order.code) || '';
         openModal('order-code-modal');
     }
 
     async function submitOrderCode() {
         const code = document.getElementById('code-value').value;
-        const number = document.getElementById('code-number').value;
 
         if (!code) {
             alert('Lütfen kodu girin');
@@ -888,7 +897,6 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     code,
-                    number: number || null,
                     status: 'Tamamlandı'
                 })
             });
