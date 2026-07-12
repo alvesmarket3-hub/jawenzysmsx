@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ödeme - VerifyPro</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        background-color: #060b13;
+        color: #ffffff;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .checkout-box {
+        background: #091220;
+        border: 1px solid #14233c;
+        border-radius: 10px;
+        padding: 35px;
+        max-width: 420px;
+        width: 100%;
+    }
+
+    .checkout-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 25px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #14233c;
+    }
+
+    .checkout-header .lock {
+        font-size: 20px;
+    }
+
+    .checkout-header .provider {
+        font-size: 14px;
+        font-weight: bold;
+        color: #00adb5;
+    }
+
+    .checkout-sub {
+        font-size: 10px;
+        color: #557193;
+        margin-bottom: 25px;
+    }
+
+    .amount-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #060b13;
+        border: 1px solid #14233c;
+        border-radius: 8px;
+        padding: 18px 20px;
+        margin-bottom: 25px;
+    }
+
+    .amount-label {
+        font-size: 11px;
+        color: #8fa0b5;
+    }
+
+    .amount-value {
+        font-size: 24px;
+        font-weight: 800;
+        color: #00adb5;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+        text-align: left;
+    }
+
+    .form-label {
+        font-size: 10px;
+        font-weight: bold;
+        color: #8fa0b5;
+        display: block;
+        margin-bottom: 6px;
+    }
+
+    .form-input {
+        width: 100%;
+        background: #060b13;
+        border: 1px solid #14233c;
+        color: #ffffff;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        outline: none;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 12px;
+    }
+
+    .form-row .form-group {
+        flex: 1;
+    }
+
+    .btn {
+        width: 100%;
+        padding: 13px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: bold;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        margin-top: 10px;
+    }
+
+    .btn-pay {
+        background: #00adb5;
+        color: #060b13;
+    }
+
+    .btn-pay:hover { background: #00d9e9; }
+    .btn-pay:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-cancel {
+        background: transparent;
+        border: 1px solid #14233c;
+        color: #8fa0b5;
+    }
+
+    .btn-cancel:hover { border-color: #e74c3c; color: #e74c3c; }
+
+    .notice {
+        font-size: 9px;
+        color: #557193;
+        text-align: center;
+        margin-top: 20px;
+        line-height: 1.5;
+    }
+
+    .status-msg {
+        text-align: center;
+        padding: 60px 20px;
+        color: #8fa0b5;
+        font-size: 12px;
+    }
+</style>
+</head>
+<body>
+
+<div class="checkout-box" id="checkout-box">
+    <div class="status-msg">Ödeme bilgileri yükleniyor...</div>
+</div>
+
+<script>
+    const API_URL = '/api';
+    const params = new URLSearchParams(window.location.search);
+    const paymentId = params.get('paymentId');
+
+    async function loadPayment() {
+        const box = document.getElementById('checkout-box');
+
+        if (!paymentId) {
+            box.innerHTML = '<div class="status-msg">Geçersiz ödeme bağlantısı.</div>';
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/payment/${paymentId}`);
+            const payment = await res.json();
+
+            if (!res.ok) {
+                box.innerHTML = `<div class="status-msg">${payment.error || 'Ödeme bulunamadı'}</div>`;
+                return;
+            }
+
+            if (payment.status !== 'pending') {
+                box.innerHTML = `<div class="status-msg">Bu ödeme zaten işlendi (${payment.status === 'completed' ? 'tamamlandı' : 'iptal edildi'}).</div>`;
+                return;
+            }
+
+            box.innerHTML = `
+                <div class="checkout-header">
+                    <div class="lock">🔒</div>
+                    <div class="provider">${payment.methodName}</div>
+                </div>
+                <div class="checkout-sub">Güvenli ödeme sayfasına yönlendirildiniz</div>
+
+                <div class="amount-row">
+                    <div class="amount-label">Ödenecek Tutar</div>
+                    <div class="amount-value">₺${payment.amount.toFixed(2)}</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Kart Numarası</label>
+                    <input type="text" class="form-input" placeholder="4242 4242 4242 4242" maxlength="19">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Son Kullanma</label>
+                        <input type="text" class="form-input" placeholder="AA/YY" maxlength="5">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">CVV</label>
+                        <input type="text" class="form-input" placeholder="123" maxlength="4">
+                    </div>
+                </div>
+
+                <button class="btn btn-pay" id="pay-btn" onclick="confirmPayment()">Ödemeyi Onayla (₺${payment.amount.toFixed(2)})</button>
+                <button class="btn btn-cancel" onclick="cancelPayment()">İptal Et</button>
+
+                <div class="notice">
+                    Bu bir demo/test ödeme ekranıdır. Gerçek kart bilgisi girmeyin.<br>
+                    ${payment.methodName} tarafından güvenli şekilde işlenir.
+                </div>
+            `;
+        } catch (e) {
+            box.innerHTML = '<div class="status-msg">Ödeme bilgileri yüklenirken hata oluştu.</div>';
+        }
+    }
+
+    async function confirmPayment() {
+        const btn = document.getElementById('pay-btn');
+        btn.disabled = true;
+        btn.textContent = 'İşleniyor...';
+
+        try {
+            const res = await fetch(`${API_URL}/payment/${paymentId}/confirm`, { method: 'POST' });
+            const data = await res.json();
+
+            if (!res.ok) {
+                alert(data.error || 'Ödeme onaylanamadı');
+                btn.disabled = false;
+                btn.textContent = 'Tekrar Dene';
+                return;
+            }
+
+            window.location.href = `/app.html?payment=success&amount=${encodeURIComponent(data.newBalance)}`;
+        } catch (e) {
+            alert('Ödeme sırasında bir hata oluştu');
+            btn.disabled = false;
+        }
+    }
+
+    async function cancelPayment() {
+        try {
+            await fetch(`${API_URL}/payment/${paymentId}/cancel`, { method: 'POST' });
+        } catch (e) {
+            // yoksay
+        }
+        window.location.href = '/app.html?payment=cancel';
+    }
+
+    loadPayment();
+</script>
+
+</body>
+</html>
