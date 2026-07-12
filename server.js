@@ -18,6 +18,7 @@ const ordersFile = path.join(dataDir, 'orders.json');
 const chatDir = path.join(dataDir, 'chats');
 const numbersFile = path.join(dataDir, 'numbers.json');
 const paymentConfigFile = path.join(dataDir, 'payment-config.json');
+const paymentsFile = path.join(dataDir, 'payments.json');
 
 // Dosya yapısını kontrol et ve oluştur
 function initializeFiles() {
@@ -40,6 +41,10 @@ function initializeFiles() {
 
     if (!fs.existsSync(ordersFile)) {
         fs.writeFileSync(ordersFile, JSON.stringify({ orders: [] }, null, 2));
+    }
+
+    if (!fs.existsSync(paymentsFile)) {
+        fs.writeFileSync(paymentsFile, JSON.stringify({ payments: [] }, null, 2));
     }
 
     if (!fs.existsSync(paymentConfigFile)) {
@@ -271,55 +276,128 @@ app.post('/api/user/:userId/add-balance', (req, res) => {
     });
 });
 
-// Kullanıcı tarafı bakiye yükleme: sadece etkin bir ödeme sistemi varsa çalışır
-app.post('/api/user/:userId/topup', (req, res) => {
-    const { userId } = req.params;
-    const { amount, method } = req.body;
+// ========== ÖDEME (CHECKOUT) AKIŞI ==========
+// Kullanıcı bir ödeme yöntemi seçtiğinde bakiye ANINDA eklenmez.
+// Önce bir "checkout" kaydı oluşturulur ve kullanıcı ödeme sayfasına yönlendirilir.
+// Bakiye, yalnızca o sayfadaki ödeme onaylandığında (confirm) eklenir.
+app.post('/api/payment/checkout', (req, res) => {
+    const { userId, amount, method } = req.body;
 
     const topupAmount = parseFloat(amount);
     if (!topupAmount || topupAmount <= 0) {
         return res.status(400).json({ error: 'Geçersiz tutar' });
     }
 
-    const paymentConfig = readJSONFile(paymentConfigFile);
-    const enabledMethods = Object.entries(paymentConfig.paymentMethods)
-        .filter(([_, m]) => m.enabled);
-
-    if (enabledMethods.length === 0) {
-        return res.status(400).json({
-            error: 'Şu anda aktif bir ödeme sistemi bulunmuyor. Lütfen daha sonra tekrar deneyin.',
-            code: 'NO_PAYMENT_METHOD'
-        });
+    if (!method) {
+        return res.status(400).json({ error: 'Ödeme yöntemi seçilmedi' });
     }
 
-    const chosenMethod = method
-        ? paymentConfig.paymentMethods[method]
-        : null;
+    let userData = readJSONFile(usersFile);
+    const user = userData.users.find(u => u.id === userId);
+    if (!user) {
+        return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+    }
 
-    if (method && (!chosenMethod || !chosenMethod.enabled)) {
+    const paymentConfig = readJSONFile(paymentConfigFile);
+    const chosenMethod = paymentConfig.paymentMethods[method];
+
+    if (!chosenMethod || !chosenMethod.enabled) {
         return res.status(400).json({
             error: 'Seçilen ödeme yöntemi şu anda aktif değil.',
             code: 'PAYMENT_METHOD_DISABLED'
         });
     }
 
-    let userData = readJSONFile(usersFile);
-    const user = userData.users.find(u => u.id === userId);
+    const paymentsData = readJSONFile(paymentsFile);
+    const payment = {
+        id: 'PAY-' + Date.now(),
+        userId,
+        amount: topupAmount,
+        method,
+        methodName: chosenMethod.name,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
 
+    paymentsData.payments.push(payment);
+    writeJSONFile(paymentsFile, paymentsData);
+
+    res.json({
+        success: true,
+        paymentId: payment.id,
+        checkoutUrl: `/checkout.html?paymentId=${payment.id}`
+    });
+});
+
+// Checkout sayfasının ödeme detaylarını göstermesi için
+app.get('/api/payment/:paymentId', (req, res) => {
+    const { paymentId } = req.params;
+    const paymentsData = readJSONFile(paymentsFile);
+    const payment = paymentsData.payments.find(p => p.id === paymentId);
+
+    if (!payment) {
+        return res.status(404).json({ error: 'Ödeme kaydı bulunamadı' });
+    }
+
+    res.json(payment);
+});
+
+// Ödeme onaylandığında (gerçek entegrasyonda bu, ödeme sağlayıcısının
+// webhook/callback'i tarafından tetiklenir) bakiye burada eklenir
+app.post('/api/payment/:paymentId/confirm', (req, res) => {
+    const { paymentId } = req.params;
+    const paymentsData = readJSONFile(paymentsFile);
+    const payment = paymentsData.payments.find(p => p.id === paymentId);
+
+    if (!payment) {
+        return res.status(404).json({ error: 'Ödeme kaydı bulunamadı' });
+    }
+
+    if (payment.status !== 'pending') {
+        return res.status(400).json({ error: 'Bu ödeme zaten işlendi' });
+    }
+
+    const paymentConfig = readJSONFile(paymentConfigFile);
+    const chosenMethod = paymentConfig.paymentMethods[payment.method];
+    if (!chosenMethod || !chosenMethod.enabled) {
+        return res.status(400).json({ error: 'Ödeme yöntemi artık aktif değil' });
+    }
+
+    let userData = readJSONFile(usersFile);
+    const user = userData.users.find(u => u.id === payment.userId);
     if (!user) {
         return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
 
-    // Not: Gerçek entegrasyonda burada seçilen ödeme sağlayıcısının
-    // API'si çağrılır ve ödeme onaylandıktan sonra bakiye eklenir.
-    user.balance += topupAmount;
+    user.balance += payment.amount;
+    payment.status = 'completed';
+    payment.completedAt = new Date().toISOString();
+
     writeJSONFile(usersFile, userData);
+    writeJSONFile(paymentsFile, paymentsData);
 
     res.json({
         success: true,
-        message: 'Bakiye başarıyla eklendi',
+        message: 'Ödeme onaylandı, bakiye eklendi',
         newBalance: user.balance
     });
+});
+
+app.post('/api/payment/:paymentId/cancel', (req, res) => {
+    const { paymentId } = req.params;
+    const paymentsData = readJSONFile(paymentsFile);
+    const payment = paymentsData.payments.find(p => p.id === paymentId);
+
+    if (!payment) {
+        return res.status(404).json({ error: 'Ödeme kaydı bulunamadı' });
+    }
+
+    if (payment.status === 'pending') {
+        payment.status = 'cancelled';
+        writeJSONFile(paymentsFile, paymentsData);
+    }
+
+    res.json({ success: true, message: 'Ödeme iptal edildi' });
 });
 
 // ========== PAYMENT CONFIG ENDPOINTS ==========
@@ -361,21 +439,30 @@ app.get('/api/payment-methods', (req, res) => {
 
 // ========== ORDERS ENDPOINTS ==========
 app.post('/api/orders', (req, res) => {
-    const { userId, packageId, price } = req.body;
+    const { userId, packageId, price, type, categoryId } = req.body;
+    const orderType = type === 'number' ? 'number' : 'package';
 
     let ordersData = readJSONFile(ordersFile);
     let userData = readJSONFile(usersFile);
-    
+
     const user = userData.users.find(u => u.id === userId);
     if (!user) {
         return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
 
-    if (!packageId || typeof price !== 'number' || price <= 0) {
-        return res.status(400).json({ error: 'Geçersiz paket veya fiyat' });
+    if (typeof price !== 'number' || price <= 0) {
+        return res.status(400).json({ error: 'Geçersiz fiyat' });
     }
 
-    // Bakiye kontrolü: yetersiz bakiye varsa sipariş oluşturulmasın
+    if (orderType === 'package' && !packageId) {
+        return res.status(400).json({ error: 'Geçersiz paket' });
+    }
+
+    if (orderType === 'number' && !categoryId) {
+        return res.status(400).json({ error: 'Geçersiz kategori' });
+    }
+
+    // Bakiye kontrolü: yetersiz bakiye varsa sipariş oluşturulmasın (paket ya da numara farketmez)
     if (user.balance < price) {
         return res.status(400).json({
             error: 'Yetersiz bakiye. Lütfen önce bakiye ekleyin.',
@@ -385,6 +472,25 @@ app.post('/api/orders', (req, res) => {
         });
     }
 
+    let assignedNumber = null;
+    let numbersData = null;
+    let category = null;
+
+    if (orderType === 'number') {
+        numbersData = readJSONFile(numbersFile);
+        category = numbersData.categories.find(c => c.id === categoryId);
+
+        if (!category || category.numbers.length === 0) {
+            return res.status(400).json({ error: 'Bu kategoride şu anda stokta numara yok' });
+        }
+
+        // Rastgele bir numara seç ve havuzdan çıkar (tekrar satılmasın)
+        const randomIndex = Math.floor(Math.random() * category.numbers.length);
+        assignedNumber = category.numbers[randomIndex];
+        category.numbers.splice(randomIndex, 1);
+        writeJSONFile(numbersFile, numbersData);
+    }
+
     // Bakiyeyi düş
     user.balance -= price;
     writeJSONFile(usersFile, userData);
@@ -392,12 +498,14 @@ app.post('/api/orders', (req, res) => {
     const order = {
         id: 'ORD-' + Date.now(),
         userId,
-        packageId,
+        type: orderType,
+        packageId: orderType === 'package' ? packageId : categoryId,
+        category: orderType === 'number' ? categoryId : null,
         price,
         status: 'Beklemede',
         paymentStatus: 'Ödendi',
         code: null,
-        number: null,
+        number: assignedNumber,
         createdAt: new Date().toISOString()
     };
 
@@ -406,7 +514,9 @@ app.post('/api/orders', (req, res) => {
 
     res.json({
         success: true,
-        message: 'Sipariş oluşturuldu. Canlı destek ile iletişime geçin.',
+        message: orderType === 'number'
+            ? 'Numaranız atandı. SMS kodu admin tarafından girildiğinde burada görünecek.'
+            : 'Sipariş oluşturuldu. Canlı destek ile iletişime geçin.',
         order,
         newBalance: user.balance
     });
