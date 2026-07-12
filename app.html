@@ -685,6 +685,7 @@
         <div class="nav-buttons" id="navButtons">
             <button class="nav-btn" onclick="showPage('home')">🏠 Anasayfa</button>
             <button class="nav-btn" onclick="showPage('packages')">📦 Paketler</button>
+            <button class="nav-btn" onclick="showPage('numbers')">🔢 Numaralar</button>
             <button class="nav-btn" onclick="showPage('orders')">📋 Siparişler</button>
             <button class="nav-btn" onclick="showPage('balance')">💰 Bakiye Yükle</button>
             <button class="nav-btn accent" onclick="showAuthPage('login')">🔑 Giriş Yap</button>
@@ -828,6 +829,24 @@
         </div>
     </div>
 
+    <!-- ========== NUMBERS PAGE ========== -->
+    <div class="page" id="numbers-page">
+        <div class="section-title">🔢 Numaralar</div>
+        <div class="section-subtitle">Platforma göre aktif numara havuzunu görüntüleyin</div>
+        <div class="orders-container" id="numbers-list">
+            <div style="text-align: center; color: #8fa0b5; padding: 40px;">Yükleniyor...</div>
+        </div>
+    </div>
+
+    <!-- ========== PROFILE PAGE ========== -->
+    <div class="page" id="profile-page">
+        <div class="section-title">👤 Profilim</div>
+        <div class="section-subtitle">Hesap bilgileriniz</div>
+        <div class="balance-container" id="profile-details">
+            <div style="text-align: center; color: #8fa0b5; padding: 40px;">Yükleniyor...</div>
+        </div>
+    </div>
+
     <!-- ========== ORDERS PAGE ========== -->
     <div class="page" id="orders-page">
         <div class="section-title">📋 Siparişlerim</div>
@@ -844,20 +863,13 @@
         <div class="section-title">💰 Bakiye Yükle</div>
         <div class="section-subtitle">Hesabınıza bakiye ekleyin</div>
         <div class="balance-container">
-            <div class="balance-amount">₺0.00</div>
+            <div class="balance-amount" id="balance-amount">₺0.00</div>
+            <div class="form-group" style="text-align:left;">
+                <label class="form-label">Yüklenecek Tutar (₺)</label>
+                <input type="number" class="form-input" id="topup-amount" placeholder="100" min="1" step="0.01">
+            </div>
             <div class="balance-methods" id="balance-methods">
-                <div class="method-card" onclick="selectPaymentMethod('paytr')">
-                    <div class="method-name">💳 PayTR</div>
-                    <div class="method-desc">Tüm banka ve kredi kartlarıyla ödeme</div>
-                </div>
-                <div class="method-card" onclick="selectPaymentMethod('shopier')">
-                    <div class="method-name">🛍️ Shopier</div>
-                    <div class="method-desc">E-ticaret ödeme sistemi</div>
-                </div>
-                <div class="method-card" onclick="selectPaymentMethod('stripe')">
-                    <div class="method-name">💰 Stripe</div>
-                    <div class="method-desc">Uluslararası ödeme</div>
-                </div>
+                <div style="text-align: center; color: #8fa0b5; padding: 20px;">Yükleniyor...</div>
             </div>
         </div>
     </div>
@@ -879,36 +891,75 @@
 </div>
 
 <script>
+    // ========== API HELPER ==========
+    const API_URL = '/api';
+
+    function getUser() {
+        try {
+            return JSON.parse(localStorage.getItem('user'));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveUser(user) {
+        localStorage.setItem('user', JSON.stringify(user));
+    }
+
+    async function api(path, options = {}) {
+        const res = await fetch(`${API_URL}${path}`, {
+            headers: { 'Content-Type': 'application/json' },
+            ...options
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const err = new Error(data.error || 'Bir hata oluştu');
+            err.data = data;
+            throw err;
+        }
+        return data;
+    }
+
     // ========== AUTH SYSTEM ==========
     function showAuthPage(page) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(`${page}-page`).classList.add('active');
     }
 
-    function handleLogin() {
-        const email = document.getElementById('login-email').value;
+    async function handleLogin() {
+        const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value;
-        
+
         if (!email || !password) {
             alert('Lütfen tüm alanları doldurun');
             return;
         }
 
-        // Simulated login - Backend'e göre değiştirilecek
-        localStorage.setItem('user', JSON.stringify({
-            email: email,
-            username: email.split('@')[0],
-            balance: 0,
-            loggedIn: true
-        }));
+        try {
+            const data = await api('/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password })
+            });
 
-        updateNavigation();
-        showPage('home');
+            saveUser({
+                id: data.user.id,
+                name: data.user.name,
+                email: data.user.email,
+                balance: data.user.balance,
+                token: data.user.token,
+                loggedIn: true
+            });
+
+            updateNavigation();
+            showPage('home');
+        } catch (e) {
+            alert(e.message);
+        }
     }
 
-    function handleRegister() {
-        const name = document.getElementById('register-name').value;
-        const email = document.getElementById('register-email').value;
+    async function handleRegister() {
+        const name = document.getElementById('register-name').value.trim();
+        const email = document.getElementById('register-email').value.trim();
         const password = document.getElementById('register-password').value;
         const password2 = document.getElementById('register-password2').value;
 
@@ -922,15 +973,26 @@
             return;
         }
 
-        localStorage.setItem('user', JSON.stringify({
-            name: name,
-            email: email,
-            balance: 0,
-            loggedIn: true
-        }));
+        try {
+            const data = await api('/register', {
+                method: 'POST',
+                body: JSON.stringify({ name, email, password })
+            });
 
-        updateNavigation();
-        showPage('home');
+            saveUser({
+                id: data.user.id,
+                name: data.user.name,
+                email: data.user.email,
+                balance: 0,
+                token: data.user.token,
+                loggedIn: true
+            });
+
+            updateNavigation();
+            showPage('home');
+        } catch (e) {
+            alert(e.message);
+        }
     }
 
     function logout() {
@@ -940,13 +1002,14 @@
     }
 
     function updateNavigation() {
-        const user = JSON.parse(localStorage.getItem('user'));
+        const user = getUser();
         const navButtons = document.getElementById('navButtons');
-        
+
         if (user && user.loggedIn) {
             navButtons.innerHTML = `
                 <button class="nav-btn" onclick="showPage('home')">🏠 Anasayfa</button>
                 <button class="nav-btn" onclick="showPage('packages')">📦 Paketler</button>
+                <button class="nav-btn" onclick="showPage('numbers')">🔢 Numaralar</button>
                 <button class="nav-btn" onclick="showPage('orders')">📋 Siparişler</button>
                 <button class="nav-btn" onclick="showPage('balance')">💰 Bakiye Yükle</button>
                 <button class="nav-btn" onclick="showPage('profile')">👤 Profil</button>
@@ -964,8 +1027,8 @@
 
     // ========== PAGE NAVIGATION ==========
     function showPage(pageName) {
-        const user = JSON.parse(localStorage.getItem('user'));
-        
+        const user = getUser();
+
         if (pageName !== 'home' && (!user || !user.loggedIn)) {
             alert('Lütfen giriş yapın');
             showAuthPage('login');
@@ -974,142 +1037,293 @@
 
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(`${pageName}-page`).classList.add('active');
+
+        if (pageName === 'orders') loadOrders();
+        if (pageName === 'numbers') loadNumbers();
+        if (pageName === 'profile') loadProfile();
+        if (pageName === 'balance') loadBalancePage();
     }
 
     // ========== PACKAGE PURCHASE ==========
-    function purchasePackage(packageId, price) {
-        const user = JSON.parse(localStorage.getItem('user'));
-        
+    async function purchasePackage(packageId, price) {
+        const user = getUser();
+
         if (!user || !user.loggedIn) {
             alert('Lütfen giriş yapın');
             showAuthPage('login');
             return;
         }
 
-        // Simulate payment
-        alert(`${packageId} Paketi - ${price} ₺\n\nÖdeme sayfasına yönlendiriliyorsunuz...\n\nSipariş alındı! Canlı destek ile iletişime geçin.`);
-        
-        // Add to orders
-        addOrder(packageId, price);
+        try {
+            const data = await api('/orders', {
+                method: 'POST',
+                body: JSON.stringify({ userId: user.id, packageId, price })
+            });
+
+            user.balance = data.newBalance;
+            saveUser(user);
+
+            alert(`${packageId} paketi satın alındı! ₺${price} bakiyenizden düşüldü.\n\nSipariş alındı, canlı destek ile iletişime geçebilirsiniz.`);
+            showPage('orders');
+        } catch (e) {
+            if (e.data && e.data.code === 'INSUFFICIENT_BALANCE') {
+                const goTopUp = confirm(`Yetersiz bakiye. Mevcut bakiyeniz: ₺${e.data.balance.toFixed(2)}, gereken: ₺${e.data.required}.\n\nŞimdi bakiye eklemek ister misiniz?`);
+                if (goTopUp) showPage('balance');
+            } else {
+                alert(e.message);
+            }
+        }
     }
 
-    function addOrder(packageId, price) {
-        let orders = JSON.parse(localStorage.getItem('orders')) || [];
-        
-        const order = {
-            id: 'ORD-' + Date.now(),
-            package: packageId,
-            price: price,
-            status: 'Beklemede',
-            date: new Date().toLocaleString('tr-TR'),
-            paymentStatus: 'Ödeme Bekleniyor'
-        };
-
-        orders.push(order);
-        localStorage.setItem('orders', JSON.stringify(orders));
-        
-        loadOrders();
-        showPage('orders');
-    }
-
-    function loadOrders() {
-        const orders = JSON.parse(localStorage.getItem('orders')) || [];
+    async function loadOrders() {
+        const user = getUser();
         const ordersList = document.getElementById('orders-list');
+        if (!user) return;
 
-        if (orders.length === 0) {
-            ordersList.innerHTML = '<div style="text-align: center; color: #8fa0b5; padding: 40px;">Henüz siparış yok</div>';
+        try {
+            const orders = await api(`/orders/${user.id}`);
+
+            if (!orders || orders.length === 0) {
+                ordersList.innerHTML = '<div style="text-align: center; color: #8fa0b5; padding: 40px;">Henüz siparış yok</div>';
+                return;
+            }
+
+            ordersList.innerHTML = orders.map(order => `
+                <div class="order-card">
+                    <div class="order-header">
+                        <div class="order-id">Sipariş #${order.id}</div>
+                        <div class="order-status">${order.status}</div>
+                    </div>
+                    <div class="order-details">
+                        <div class="order-detail-item">
+                            <div class="order-detail-label">Paket</div>
+                            <div>${order.packageId}</div>
+                        </div>
+                        <div class="order-detail-item">
+                            <div class="order-detail-label">Fiyat</div>
+                            <div>₺${order.price}</div>
+                        </div>
+                        <div class="order-detail-item">
+                            <div class="order-detail-label">Tarih</div>
+                            <div>${new Date(order.createdAt).toLocaleString('tr-TR')}</div>
+                        </div>
+                    </div>
+                    ${order.code ? `<div class="order-detail-item" style="margin-bottom:15px;"><div class="order-detail-label">Onay Kodu</div><div>${order.code}</div></div>` : ''}
+                    ${order.number ? `<div class="order-detail-item" style="margin-bottom:15px;"><div class="order-detail-label">Numara</div><div>${order.number}</div></div>` : ''}
+                    <div class="order-actions">
+                        <button class="action-btn" onclick="openChatForOrder('${order.id}')">💬 Canlı Destek</button>
+                        <button class="action-btn primary" onclick="contactWhatsApp('${order.id}')">📱 WhatsApp</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            ordersList.innerHTML = `<div style="text-align: center; color: #8fa0b5; padding: 40px;">Siparişler yüklenemedi: ${e.message}</div>`;
+        }
+    }
+
+    // ========== NUMBERS PAGE ==========
+    async function loadNumbers() {
+        const numbersList = document.getElementById('numbers-list');
+        numbersList.innerHTML = '<div style="text-align: center; color: #8fa0b5; padding: 40px;">Yükleniyor...</div>';
+
+        try {
+            const categories = await api('/numbers');
+
+            if (!categories || categories.length === 0) {
+                numbersList.innerHTML = '<div style="text-align: center; color: #8fa0b5; padding: 40px;">Henüz numara eklenmemiş</div>';
+                return;
+            }
+
+            numbersList.innerHTML = categories.map(cat => `
+                <div class="order-card">
+                    <div class="order-header">
+                        <div class="order-id">${cat.icon || ''} ${cat.name}</div>
+                        <div class="order-status">${cat.numbers.length} numara</div>
+                    </div>
+                    <div class="order-actions">
+                        <button class="action-btn primary" onclick="getRandomNumber('${cat.id}')">🎲 Rastgele Numara Al</button>
+                    </div>
+                    <div id="random-number-${cat.id}" style="margin-top:10px;font-size:11px;color:#00adb5;"></div>
+                </div>
+            `).join('');
+        } catch (e) {
+            numbersList.innerHTML = `<div style="text-align: center; color: #8fa0b5; padding: 40px;">Numaralar yüklenemedi: ${e.message}</div>`;
+        }
+    }
+
+    async function getRandomNumber(categoryId) {
+        try {
+            const data = await api(`/numbers/${categoryId}/random`);
+            document.getElementById(`random-number-${categoryId}`).textContent = `📱 ${data.number}`;
+        } catch (e) {
+            alert(e.message);
+        }
+    }
+
+    // ========== PROFILE PAGE ==========
+    async function loadProfile() {
+        const user = getUser();
+        const container = document.getElementById('profile-details');
+        if (!user) return;
+
+        try {
+            const data = await api(`/user/${user.id}`);
+            user.balance = data.balance;
+            saveUser(user);
+
+            container.innerHTML = `
+                <div class="form-group" style="text-align:left;">
+                    <label class="form-label">Ad Soyad</label>
+                    <div class="form-input" style="background:#0f1a27;">${data.name}</div>
+                </div>
+                <div class="form-group" style="text-align:left;">
+                    <label class="form-label">E-Posta</label>
+                    <div class="form-input" style="background:#0f1a27;">${data.email}</div>
+                </div>
+                <div class="form-group" style="text-align:left;">
+                    <label class="form-label">Bakiye</label>
+                    <div class="form-input" style="background:#0f1a27;">₺${data.balance.toFixed(2)}</div>
+                </div>
+                <div class="form-group" style="text-align:left;">
+                    <label class="form-label">Kayıt Tarihi</label>
+                    <div class="form-input" style="background:#0f1a27;">${new Date(data.createdAt).toLocaleString('tr-TR')}</div>
+                </div>
+            `;
+        } catch (e) {
+            container.innerHTML = `<div style="text-align: center; color: #8fa0b5; padding: 40px;">Profil yüklenemedi: ${e.message}</div>`;
+        }
+    }
+
+    // ========== BALANCE / TOP-UP ==========
+    async function loadBalancePage() {
+        const user = getUser();
+        const amountEl = document.getElementById('balance-amount');
+        const methodsEl = document.getElementById('balance-methods');
+        if (!user) return;
+
+        try {
+            const userData = await api(`/user/${user.id}`);
+            user.balance = userData.balance;
+            saveUser(user);
+            amountEl.textContent = `₺${userData.balance.toFixed(2)}`;
+        } catch (e) {
+            // Bakiye alınamazsa sessizce devam et
+        }
+
+        try {
+            const methods = await api('/payment-methods');
+
+            if (!methods || methods.length === 0) {
+                methodsEl.innerHTML = `
+                    <div style="text-align: center; color: #8fa0b5; padding: 20px;">
+                        Şu anda aktif bir ödeme sistemi bulunmuyor. Lütfen daha sonra tekrar deneyin.
+                    </div>
+                `;
+                return;
+            }
+
+            methodsEl.innerHTML = methods.map(m => `
+                <div class="method-card" onclick="selectPaymentMethod('${m.id}')">
+                    <div class="method-name">${m.name}</div>
+                    <div class="method-desc">Bu yöntemle bakiye ekle</div>
+                </div>
+            `).join('');
+        } catch (e) {
+            methodsEl.innerHTML = `<div style="text-align: center; color: #8fa0b5; padding: 20px;">Ödeme yöntemleri yüklenemedi</div>`;
+        }
+    }
+
+    async function selectPaymentMethod(method) {
+        const user = getUser();
+        if (!user) return;
+
+        const amount = parseFloat(document.getElementById('topup-amount').value);
+        if (!amount || amount <= 0) {
+            alert('Lütfen geçerli bir tutar girin');
             return;
         }
 
-        ordersList.innerHTML = orders.map(order => `
-            <div class="order-card">
-                <div class="order-header">
-                    <div class="order-id">Sipariş #${order.id}</div>
-                    <div class="order-status">${order.status}</div>
-                </div>
-                <div class="order-details">
-                    <div class="order-detail-item">
-                        <div class="order-detail-label">Paket</div>
-                        <div>${order.package}</div>
-                    </div>
-                    <div class="order-detail-item">
-                        <div class="order-detail-label">Fiyat</div>
-                        <div>₺${order.price}</div>
-                    </div>
-                    <div class="order-detail-item">
-                        <div class="order-detail-label">Tarih</div>
-                        <div>${order.date}</div>
-                    </div>
-                </div>
-                <div class="order-actions">
-                    <button class="action-btn" onclick="openChatForOrder('${order.id}')">💬 Canlı Destek</button>
-                    <button class="action-btn primary" onclick="contactWhatsApp('${order.id}')">📱 WhatsApp</button>
-                </div>
-            </div>
-        `).join('');
-    }
+        try {
+            const data = await api(`/user/${user.id}/topup`, {
+                method: 'POST',
+                body: JSON.stringify({ amount, method })
+            });
 
-    function selectPaymentMethod(method) {
-        alert(`${method} ödeme yöntemi seçildi.\n\nHareket ettiriliyor...`);
+            user.balance = data.newBalance;
+            saveUser(user);
+
+            alert(`₺${amount} bakiyeniz eklendi. Yeni bakiye: ₺${data.newBalance.toFixed(2)}`);
+            loadBalancePage();
+        } catch (e) {
+            alert(e.message);
+        }
     }
 
     // ========== CHAT SYSTEM ==========
+    let chatPollInterval = null;
+
     function toggleChat() {
         const chatWidget = document.getElementById('chat-widget');
         const chatToggle = document.getElementById('chat-toggle');
-        
+
         chatWidget.classList.toggle('active');
         chatToggle.textContent = chatWidget.classList.contains('active') ? '✕' : '💬';
-        
-        loadChatMessages();
+
+        if (chatWidget.classList.contains('active')) {
+            loadChatMessages();
+            if (!chatPollInterval) {
+                chatPollInterval = setInterval(loadChatMessages, 4000);
+            }
+        } else if (chatPollInterval) {
+            clearInterval(chatPollInterval);
+            chatPollInterval = null;
+        }
     }
 
-    function sendChatMessage() {
+    async function sendChatMessage() {
+        const user = getUser();
         const input = document.getElementById('chat-input');
         const message = input.value.trim();
-        
-        if (!message) return;
 
-        let messages = JSON.parse(localStorage.getItem('chat-messages')) || [];
-        messages.push({
-            sender: 'user',
-            content: message,
-            time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
-        });
+        if (!message || !user) return;
 
-        localStorage.setItem('chat-messages', JSON.stringify(messages));
-        input.value = '';
-        loadChatMessages();
-
-        // Simulate admin response
-        setTimeout(() => {
-            messages.push({
-                sender: 'admin',
-                content: 'Merhaba! Size nasıl yardımcı olabilirim?',
-                time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+        try {
+            await api(`/chat/${user.id}/send`, {
+                method: 'POST',
+                body: JSON.stringify({ sender: 'user', content: message })
             });
-            localStorage.setItem('chat-messages', JSON.stringify(messages));
+            input.value = '';
             loadChatMessages();
-        }, 1000);
+        } catch (e) {
+            alert(e.message);
+        }
     }
 
-    function loadChatMessages() {
-        const messages = JSON.parse(localStorage.getItem('chat-messages')) || [];
-        const chatBody = document.getElementById('chat-body');
-        
-        chatBody.innerHTML = messages.map(msg => `
-            <div class="message ${msg.sender}">
-                <div class="message-content">${msg.content}</div>
-                <div class="message-time">${msg.time}</div>
-            </div>
-        `).join('');
+    async function loadChatMessages() {
+        const user = getUser();
+        if (!user) return;
 
-        chatBody.scrollTop = chatBody.scrollHeight;
+        const chatBody = document.getElementById('chat-body');
+
+        try {
+            const data = await api(`/chat/${user.id}`);
+            const messages = data.messages || [];
+
+            chatBody.innerHTML = messages.map(msg => `
+                <div class="message ${msg.sender}">
+                    <div class="message-content">${msg.content}</div>
+                    <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+            `).join('');
+
+            chatBody.scrollTop = chatBody.scrollHeight;
+        } catch (e) {
+            // Sessizce yoksay, sohbet penceresi kapalıyken hata göstermeye gerek yok
+        }
     }
 
     function openChatForOrder(orderId) {
         document.getElementById('chat-toggle').click();
-        addSystemMessage(`Sipariş #${orderId} ile ilgili destek açıldı.`);
     }
 
     function contactWhatsApp(orderId) {
@@ -1119,22 +1333,13 @@
         window.open(whatsappLink, '_blank');
     }
 
-    function addSystemMessage(message) {
-        let messages = JSON.parse(localStorage.getItem('chat-messages')) || [];
-        messages.push({
-            sender: 'system',
-            content: message,
-            time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
-        });
-        localStorage.setItem('chat-messages', JSON.stringify(messages));
-        loadChatMessages();
-    }
-
     // ========== INIT ==========
     document.addEventListener('DOMContentLoaded', () => {
         updateNavigation();
-        loadOrders();
-        loadChatMessages();
+        const user = getUser();
+        if (user && user.loggedIn) {
+            loadOrders();
+        }
     });
 
     // Enter tuşu ile mesaj gönder
