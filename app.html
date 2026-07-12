@@ -648,6 +648,91 @@
             display: none;
         }
 
+        /* ========== NUMBER ORDER MODAL ========== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(6, 11, 19, 0.85);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .number-modal-box {
+            background: #091220;
+            border: 1px solid #14233c;
+            border-radius: 10px;
+            padding: 35px;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            position: relative;
+        }
+
+        .number-modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 22px;
+            cursor: pointer;
+            color: #8fa0b5;
+        }
+
+        .number-modal-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #00adb5;
+            margin-bottom: 20px;
+        }
+
+        .number-box {
+            background: #060b13;
+            border: 1px solid #00adb5;
+            border-radius: 8px;
+            padding: 20px;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+
+        .sms-waiting {
+            font-size: 11px;
+            color: #f39c12;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .sms-code {
+            font-size: 14px;
+            color: #2ecc71;
+            font-weight: bold;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #f39c12;
+            animation: pulse 1.2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+
         /* ========== RESPONSIVE ========== */
         @media (max-width: 768px) {
             .packages-grid,
@@ -746,7 +831,7 @@
             <p>WhatsApp, Telegram ve 15+ platform için anında SMS onay. Canlı destek ile kurumsal hesap teslimatı. 7/24 aktif numara havuzu.</p>
             <div class="hero-buttons">
                 <button class="btn btn-primary" onclick="showPage('packages')">Paketleri Keşfet</button>
-                <button class="btn btn-secondary">Numara Satın Al</button>
+                <button class="btn btn-secondary" onclick="showPage('numbers')">Numara Satın Al</button>
             </div>
         </div>
 
@@ -814,26 +899,14 @@
                 <button class="buy-btn" onclick="purchasePackage('telegram', 39.99)">Satın Al</button>
             </div>
 
-            <div class="package-card">
-                <div class="package-icon">🔢</div>
-                <div class="package-title">Numara + SMS Onay</div>
-                <div class="package-desc">Rastgele numara ile birlikte SMS onay al.</div>
-                <ul class="package-features">
-                    <li>Rastgele Numara</li>
-                    <li>Tüm Platformlar</li>
-                    <li>30sn İptal Hakkı</li>
-                </ul>
-                <div class="package-price">24.99 ₺</div>
-                <button class="buy-btn" onclick="purchasePackage('sms-onay', 24.99)">Satın Al</button>
-            </div>
         </div>
     </div>
 
     <!-- ========== NUMBERS PAGE ========== -->
     <div class="page" id="numbers-page">
-        <div class="section-title">🔢 Numaralar</div>
-        <div class="section-subtitle">Platforma göre aktif numara havuzunu görüntüleyin</div>
-        <div class="orders-container" id="numbers-list">
+        <div class="section-title">🔢 Numara + SMS Onay</div>
+        <div class="section-subtitle">Platform seçin, numaranızı satın alın, SMS kodunuz admin tarafından iletilsin</div>
+        <div class="packages-grid" id="numbers-list">
             <div style="text-align: center; color: #8fa0b5; padding: 40px;">Yükleniyor...</div>
         </div>
     </div>
@@ -887,6 +960,18 @@
     <div class="chat-footer">
         <input type="text" class="chat-input" id="chat-input" placeholder="Mesajınızı yazın...">
         <button class="chat-send" onclick="sendChatMessage()">➤</button>
+    </div>
+</div>
+
+<!-- ========== NUMBER ORDER STATUS MODAL ========== -->
+<div class="modal-overlay" id="number-order-modal">
+    <div class="number-modal-box">
+        <span class="number-modal-close" onclick="closeNumberOrderModal()">×</span>
+        <div class="number-modal-title">📱 Numaranız Hazır</div>
+        <div class="number-box" id="number-modal-number">-</div>
+        <div id="number-modal-status">
+            <div class="sms-waiting"><span class="pulse-dot"></span> SMS kodu bekleniyor...</div>
+        </div>
     </div>
 </div>
 
@@ -1057,21 +1142,25 @@
         try {
             const data = await api('/orders', {
                 method: 'POST',
-                body: JSON.stringify({ userId: user.id, packageId, price })
+                body: JSON.stringify({ userId: user.id, packageId, price, type: 'package' })
             });
 
             user.balance = data.newBalance;
             saveUser(user);
 
-            alert(`${packageId} paketi satın alındı! ₺${price} bakiyenizden düşüldü.\n\nSipariş alındı, canlı destek ile iletişime geçebilirsiniz.`);
+            alert(`${packageId} paketi satın alındı! ₺${price} bakiyenizden düşüldü.\n\nSipariş alındı, canlı destek veya WhatsApp üzerinden teslimat için iletişime geçebilirsiniz.`);
             showPage('orders');
         } catch (e) {
-            if (e.data && e.data.code === 'INSUFFICIENT_BALANCE') {
-                const goTopUp = confirm(`Yetersiz bakiye. Mevcut bakiyeniz: ₺${e.data.balance.toFixed(2)}, gereken: ₺${e.data.required}.\n\nŞimdi bakiye eklemek ister misiniz?`);
-                if (goTopUp) showPage('balance');
-            } else {
-                alert(e.message);
-            }
+            handlePurchaseError(e);
+        }
+    }
+
+    function handlePurchaseError(e) {
+        if (e.data && e.data.code === 'INSUFFICIENT_BALANCE') {
+            const goTopUp = confirm(`Yetersiz bakiye. Mevcut bakiyeniz: ₺${e.data.balance.toFixed(2)}, gereken: ₺${e.data.required}.\n\nŞimdi bakiye eklemek ister misiniz?`);
+            if (goTopUp) showPage('balance');
+        } else {
+            alert(e.message);
         }
     }
 
@@ -1088,75 +1177,174 @@
                 return;
             }
 
-            ordersList.innerHTML = orders.map(order => `
+            ordersList.innerHTML = orders.slice().reverse().map(order => renderOrderCard(order)).join('');
+        } catch (e) {
+            ordersList.innerHTML = `<div style="text-align: center; color: #8fa0b5; padding: 40px;">Siparişler yüklenemedi: ${e.message}</div>`;
+        }
+    }
+
+    function renderOrderCard(order) {
+        if (order.type === 'number') {
+            return `
                 <div class="order-card">
                     <div class="order-header">
                         <div class="order-id">Sipariş #${order.id}</div>
                         <div class="order-status">${order.status}</div>
                     </div>
-                    <div class="order-details">
+                    <div class="order-details" style="grid-template-columns: repeat(2, 1fr);">
                         <div class="order-detail-item">
-                            <div class="order-detail-label">Paket</div>
+                            <div class="order-detail-label">Platform</div>
                             <div>${order.packageId}</div>
                         </div>
                         <div class="order-detail-item">
                             <div class="order-detail-label">Fiyat</div>
                             <div>₺${order.price}</div>
                         </div>
-                        <div class="order-detail-item">
-                            <div class="order-detail-label">Tarih</div>
-                            <div>${new Date(order.createdAt).toLocaleString('tr-TR')}</div>
-                        </div>
                     </div>
-                    ${order.code ? `<div class="order-detail-item" style="margin-bottom:15px;"><div class="order-detail-label">Onay Kodu</div><div>${order.code}</div></div>` : ''}
-                    ${order.number ? `<div class="order-detail-item" style="margin-bottom:15px;"><div class="order-detail-label">Numara</div><div>${order.number}</div></div>` : ''}
+                    <div class="number-box" style="font-size:16px;padding:12px;margin-bottom:12px;">${order.number || '-'}</div>
+                    ${order.code
+                        ? `<div class="sms-code" style="margin-bottom:12px;">✅ SMS Kodu: ${order.code}</div>`
+                        : `<div class="sms-waiting" style="margin-bottom:12px;"><span class="pulse-dot"></span> SMS kodu bekleniyor...</div>`
+                    }
                     <div class="order-actions">
                         <button class="action-btn" onclick="openChatForOrder('${order.id}')">💬 Canlı Destek</button>
-                        <button class="action-btn primary" onclick="contactWhatsApp('${order.id}')">📱 WhatsApp</button>
                     </div>
                 </div>
-            `).join('');
-        } catch (e) {
-            ordersList.innerHTML = `<div style="text-align: center; color: #8fa0b5; padding: 40px;">Siparişler yüklenemedi: ${e.message}</div>`;
+            `;
         }
+
+        return `
+            <div class="order-card">
+                <div class="order-header">
+                    <div class="order-id">Sipariş #${order.id}</div>
+                    <div class="order-status">${order.status}</div>
+                </div>
+                <div class="order-details">
+                    <div class="order-detail-item">
+                        <div class="order-detail-label">Paket</div>
+                        <div>${order.packageId}</div>
+                    </div>
+                    <div class="order-detail-item">
+                        <div class="order-detail-label">Fiyat</div>
+                        <div>₺${order.price}</div>
+                    </div>
+                    <div class="order-detail-item">
+                        <div class="order-detail-label">Tarih</div>
+                        <div>${new Date(order.createdAt).toLocaleString('tr-TR')}</div>
+                    </div>
+                </div>
+                <div class="order-actions">
+                    <button class="action-btn" onclick="openChatForOrder('${order.id}')">💬 Canlı Destek'e Ulaş</button>
+                    <button class="action-btn primary" onclick="contactWhatsApp('${order.id}')">📱 WhatsApp'tan Ulaş</button>
+                </div>
+            </div>
+        `;
     }
 
     // ========== NUMBERS PAGE ==========
+    const NUMBER_PRICE = 24.99;
+    let numberPollInterval = null;
+
     async function loadNumbers() {
         const numbersList = document.getElementById('numbers-list');
         numbersList.innerHTML = '<div style="text-align: center; color: #8fa0b5; padding: 40px;">Yükleniyor...</div>';
 
         try {
             const categories = await api('/numbers');
+            const available = categories.filter(cat => cat.numbers.length > 0);
 
-            if (!categories || categories.length === 0) {
-                numbersList.innerHTML = '<div style="text-align: center; color: #8fa0b5; padding: 40px;">Henüz numara eklenmemiş</div>';
+            if (!available || available.length === 0) {
+                numbersList.innerHTML = '<div style="text-align: center; color: #8fa0b5; padding: 40px; grid-column: 1/-1;">Şu anda stokta numara yok, lütfen daha sonra tekrar deneyin</div>';
                 return;
             }
 
-            numbersList.innerHTML = categories.map(cat => `
-                <div class="order-card">
-                    <div class="order-header">
-                        <div class="order-id">${cat.icon || ''} ${cat.name}</div>
-                        <div class="order-status">${cat.numbers.length} numara</div>
-                    </div>
-                    <div class="order-actions">
-                        <button class="action-btn primary" onclick="getRandomNumber('${cat.id}')">🎲 Rastgele Numara Al</button>
-                    </div>
-                    <div id="random-number-${cat.id}" style="margin-top:10px;font-size:11px;color:#00adb5;"></div>
+            numbersList.innerHTML = available.map(cat => `
+                <div class="package-card">
+                    <div class="package-icon">${cat.icon || '🔢'}</div>
+                    <div class="package-title">${cat.name}</div>
+                    <div class="package-desc">${cat.name} için SMS onay numarası. Satın alınca numara anında atanır, kod admin tarafından girilince burada görünür.</div>
+                    <div class="package-price">₺${NUMBER_PRICE}</div>
+                    <button class="buy-btn" onclick="purchaseNumber('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')">Satın Al</button>
                 </div>
             `).join('');
         } catch (e) {
-            numbersList.innerHTML = `<div style="text-align: center; color: #8fa0b5; padding: 40px;">Numaralar yüklenemedi: ${e.message}</div>`;
+            numbersList.innerHTML = `<div style="text-align: center; color: #8fa0b5; padding: 40px; grid-column: 1/-1;">Numaralar yüklenemedi: ${e.message}</div>`;
         }
     }
 
-    async function getRandomNumber(categoryId) {
+    async function purchaseNumber(categoryId, categoryName) {
+        const user = getUser();
+
+        if (!user || !user.loggedIn) {
+            alert('Lütfen giriş yapın');
+            showAuthPage('login');
+            return;
+        }
+
         try {
-            const data = await api(`/numbers/${categoryId}/random`);
-            document.getElementById(`random-number-${categoryId}`).textContent = `📱 ${data.number}`;
+            const data = await api('/orders', {
+                method: 'POST',
+                body: JSON.stringify({
+                    userId: user.id,
+                    type: 'number',
+                    categoryId,
+                    packageId: categoryName,
+                    price: NUMBER_PRICE
+                })
+            });
+
+            user.balance = data.newBalance;
+            saveUser(user);
+
+            openNumberOrderModal(data.order);
+            loadNumbers();
         } catch (e) {
-            alert(e.message);
+            handlePurchaseError(e);
+        }
+    }
+
+    function openNumberOrderModal(order) {
+        document.getElementById('number-modal-number').textContent = order.number || '-';
+        renderNumberModalStatus(order.code);
+        document.getElementById('number-order-modal').classList.add('active');
+
+        if (numberPollInterval) clearInterval(numberPollInterval);
+        numberPollInterval = setInterval(() => pollNumberOrder(order.id), 4000);
+    }
+
+    function closeNumberOrderModal() {
+        document.getElementById('number-order-modal').classList.remove('active');
+        if (numberPollInterval) {
+            clearInterval(numberPollInterval);
+            numberPollInterval = null;
+        }
+    }
+
+    function renderNumberModalStatus(code) {
+        const statusEl = document.getElementById('number-modal-status');
+        statusEl.innerHTML = code
+            ? `<div class="sms-code">✅ SMS Kodunuz: ${code}</div>`
+            : `<div class="sms-waiting"><span class="pulse-dot"></span> SMS kodu bekleniyor...</div>`;
+    }
+
+    async function pollNumberOrder(orderId) {
+        const user = getUser();
+        if (!user) return;
+
+        try {
+            const orders = await api(`/orders/${user.id}`);
+            const order = orders.find(o => o.id === orderId);
+
+            if (order && order.code) {
+                renderNumberModalStatus(order.code);
+                clearInterval(numberPollInterval);
+                numberPollInterval = null;
+                if (document.getElementById('orders-page').classList.contains('active')) {
+                    loadOrders();
+                }
+            }
+        } catch (e) {
+            // Sessizce yoksay, bir sonraki denemede tekrar dener
         }
     }
 
@@ -1244,16 +1432,14 @@
         }
 
         try {
-            const data = await api(`/user/${user.id}/topup`, {
+            const data = await api('/payment/checkout', {
                 method: 'POST',
-                body: JSON.stringify({ amount, method })
+                body: JSON.stringify({ userId: user.id, amount, method })
             });
 
-            user.balance = data.newBalance;
-            saveUser(user);
-
-            alert(`₺${amount} bakiyeniz eklendi. Yeni bakiye: ₺${data.newBalance.toFixed(2)}`);
-            loadBalancePage();
+            // Gerçek bir ödeme sistemine yönlendirir gibi sayfa değiştiriyoruz.
+            // Bakiye SADECE o sayfada ödeme onaylanınca eklenir.
+            window.location.href = data.checkoutUrl;
         } catch (e) {
             alert(e.message);
         }
@@ -1340,7 +1526,33 @@
         if (user && user.loggedIn) {
             loadOrders();
         }
+        handlePaymentRedirect();
     });
+
+    function handlePaymentRedirect() {
+        const params = new URLSearchParams(window.location.search);
+        const paymentResult = params.get('payment');
+
+        if (!paymentResult) return;
+
+        const user = getUser();
+
+        if (paymentResult === 'success') {
+            if (user && params.has('amount')) {
+                user.balance = parseFloat(params.get('amount'));
+                saveUser(user);
+            }
+            alert('Ödemeniz onaylandı! Bakiyeniz güncellendi.');
+            if (user) showPage('balance');
+        } else if (paymentResult === 'cancel') {
+            alert('Ödeme iptal edildi. Bakiyenize herhangi bir tutar eklenmedi.');
+            if (user) showPage('balance');
+        }
+
+        // URL'i temizle
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
 
     // Enter tuşu ile mesaj gönder
     document.addEventListener('keypress', (e) => {
