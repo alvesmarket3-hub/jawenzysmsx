@@ -1,0 +1,92 @@
+{
+  "paymentMethods": {
+    "paytr": {
+      "name": "💳 PayTR",
+      "enabled": false,
+      "description": "Türkiye'nin en popüler ödeme sistemi. Tüm banka ve kredi kartlarıyla ödeme.",
+      "merchantId": "",
+      "merchantKey": "",
+      "merchantSalt": "",
+      "commission": "2.5%",
+      "currencies": ["TRY"],
+      "countries": ["TR"]
+    },
+    "shopier": {
+      "name": "🛍️ Shopier",
+      "enabled": false,
+      "description": "E-ticaret optimize ödeme sistemi.",
+      "apiKey": "",
+      "apiSecret": "",
+      "commission": "3%",
+      "currencies": ["TRY", "USD", "EUR"],
+      "countries": ["TR", "US", "DE", "FR"]
+    },
+    "stripe": {
+      "name": "💰 Stripe",
+      "enabled": false,
+      "description": "Dünya çapında kullanılan ödeme platformu.",
+      "publicKey": "",
+      "secretKey": "",
+      "commission": "2.9% + 0.30",
+      "currencies": ["USD", "EUR", "GBP", "TRY"],
+      "countries": ["US", "DE", "GB", "FR", "TR"]
+    },
+    "iyzipay": {
+      "name": "🇹🇷 Iyzipay",
+      "enabled": false,
+      "description": "Türkiye'nin fintech çözümü. Lokal para ve uluslararası ödemeler.",
+      "apiKey": "",
+      "secretKey": "",
+      "commission": "1.99%",
+      "currencies": ["TRY", "USD", "EUR"],
+      "countries": ["TR"]
+    },
+    "twocheckout": {
+      "name": "🌍 2Checkout",
+      "enabled": false,
+      "description": "Global ödeme çözümü. 200+ ülkede kullanılabilir.",
+      "merchantCode": "",
+      "apiKey": "",
+      "commission": "3.5%",
+      "currencies": ["USD", "EUR", "GBP", "TRY"],
+      "countries": ["US", "DE", "GB", "FR", "TR"]
+    },
+    "paypal": {
+      "name": "🅿️ PayPal",
+      "enabled": false,
+      "description": "Dünyada en güvenilen ödeme sistemi.",
+      "clientId": "",
+      "clientSecret": "",
+      "commission": "3.49% + 0.49",
+      "currencies": ["USD", "EUR", "GBP", "TRY"],
+      "countries": ["US", "DE", "GB", "FR", "TR"]
+    }
+  },
+  "paymentSettings": {
+    "defaultCurrency": "TRY",
+    "defaultMethod": "paytr",
+    "successUrl": "http://localhost:5000/payment/success",
+    "failureUrl": "http://localhost:5000/payment/failure",
+    "cancelUrl": "http://localhost:5000/payment/cancel",
+    "webhookUrl": "http://localhost:5000/webhooks/payment",
+    "enableRecurring": false,
+    "enableInstallments": false,
+    "maxInstallments": 12
+  },
+  "invoiceSettings": {
+    "enabled": true,
+    "autoGenerate": true,
+    "format": "INV-{YEAR}-{ID}",
+    "taxRate": "18%",
+    "companyName": "VerifyPro",
+    "companyAddress": "Istanbul, Turkey",
+    "companyEmail": "billing@verifypro.com",
+    "companyPhone": "+90 555 123 4567"
+  },
+  "refundSettings": {
+    "enabled": true,
+    "refundWindow": 30,
+    "autoRefund": false,
+    "requireApproval": true
+  }
+}
